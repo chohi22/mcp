@@ -1,6 +1,6 @@
 version: 1
 name: procurement-mcp-server
-description: MCP Server for procurement data automation
+description: Python-based MCP Server for procurement data automation
 
 build:
   dockerfile: Dockerfile
@@ -14,7 +14,7 @@ environment:
   - SUPABASE_KEY
 
 health_check:
-  command: ["node", "-e", "console.log('ok')"]
+  command: ["python", "-c", "print('ok')"]
   interval: 30s
   timeout: 10s
   retries: 3

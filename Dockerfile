@@ -1,30 +1,34 @@
-FROM node:18-alpine
+FROM python:3.9-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN npm install --production
+# Copy requirements
+COPY requirements.txt .
 
-# Copy source code
-COPY index.js ./
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy server code
+COPY mcp_server.py .
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S mcp -u 1001 -G nodejs
+RUN useradd -m -u 1001 mcp
 
 # Change ownership
-RUN chown -R mcp:nodejs /app
+RUN chown -R mcp:mcp /app
 
 # Switch to non-root user
 USER mcp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "console.log('Health check passed')" || exit 1
+  CMD python -c "print('Health check passed')" || exit 1
 
 # Start the server
-CMD ["node", "index.js"]
+CMD ["python", "mcp_server.py"]
