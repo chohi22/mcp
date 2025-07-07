@@ -32,12 +32,22 @@ smithery.ai에 배포하려면:
 
 ## 개발
 
-TypeScript로 작성되었으며, 다음과 같은 구조를 가집니다:
+Custom Deploy 방식으로 작성되었으며, 다음과 같은 구조를 가집니다:
 
-- `src/index.ts` - 메인 서버 코드
-- `index.js` - 로컬 실행용 JavaScript 코드
-- `smithery.yaml` - smithery.ai 배포 설정 (TypeScript 런타임)
-- `package.json` - 프로젝트 설정 (module 필드에 TypeScript 진입점 설정)
+- `index.js` - stdio 기반 MCP 서버 (로컬 실행용)
+- `server.js` - HTTP 래퍼 서버 (smithery.ai 배포용)
+- `src/index.ts` - TypeScript 소스 (참고용)
+- `Dockerfile` - Docker 컨테이너 설정
+- `smithery.yaml` - smithery.ai 배포 설정 (Custom Deploy)
+- `package.json` - 프로젝트 설정
+
+### 배포 방식
+
+- **로컬 개발**: `npm start` (stdio 기반)
+- **smithery.ai 배포**: Custom Deploy (HTTP 엔드포인트)
+  - HTTP 서버가 stdio 기반 MCP 서버를 래핑
+  - `/mcp` 엔드포인트에서 lazy loading 지원
+  - Docker 컨테이너로 배포
 
 ## 사용 예시
 
