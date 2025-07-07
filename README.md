@@ -30,6 +30,15 @@ smithery.ai에 배포하려면:
 ./deploy.sh
 ```
 
+## 개발
+
+TypeScript로 작성되었으며, 다음과 같은 구조를 가집니다:
+
+- `src/index.ts` - 메인 서버 코드
+- `index.js` - 로컬 실행용 JavaScript 코드
+- `smithery.yaml` - smithery.ai 배포 설정 (TypeScript 런타임)
+- `package.json` - 프로젝트 설정 (module 필드에 TypeScript 진입점 설정)
+
 ## 사용 예시
 
 ### hello_world 도구

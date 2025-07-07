@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Simple MCP test server for smithery.ai deployment",
   "main": "index.js",
+  "module": "./src/index.ts",
   "type": "module",
   "scripts": {
     "start": "node index.js",
@@ -21,7 +22,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0"
   },
+  "devDependencies": {
+    "@types/node": "^18.19.115",
+    "typescript": "^5.8.3"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
-} 
+}
