@@ -1,89 +1,71 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ErrorCode,
-  ListToolsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
-const server = new Server(
+// 도구 정의
+const tools = [
   {
-    name: 'simple-mcp-server',
-    version: '1.0.0',
-  }
-);
-
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'hello_world',
-        description: 'Returns a simple hello world message',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'Name to greet',
-            },
-          },
-          required: ['name'],
+    name: 'hello_world',
+    description: 'Returns a simple hello world message',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name to greet',
         },
       },
-      {
-        name: 'calculate',
-        description: 'Performs basic arithmetic calculations',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            operation: {
-              type: 'string',
-              enum: ['add', 'subtract', 'multiply', 'divide'],
-              description: 'The operation to perform',
-            },
-            a: {
-              type: 'number',
-              description: 'First number',
-            },
-            b: {
-              type: 'number',
-              description: 'Second number',
-            },
-          },
-          required: ['operation', 'a', 'b'],
+      required: ['name'],
+    },
+  },
+  {
+    name: 'calculate',
+    description: 'Performs basic arithmetic calculations',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['add', 'subtract', 'multiply', 'divide'],
+          description: 'The operation to perform',
+        },
+        a: {
+          type: 'number',
+          description: 'First number',
+        },
+        b: {
+          type: 'number',
+          description: 'Second number',
         },
       },
-      {
-        name: 'get_time',
-        description: 'Returns the current time',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    ],
-  };
-});
+      required: ['operation', 'a', 'b'],
+    },
+  },
+  {
+    name: 'get_time',
+    description: 'Returns the current time',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+];
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
+// 도구 실행 함수
+async function executeTool(name: string, args: any) {
   switch (name) {
     case 'hello_world':
       return {
         content: [
           {
             type: 'text',
-            text: `Hello, ${(args as any).name}! Welcome to the Simple MCP Server.`,
+            text: `Hello, ${args.name}! Welcome to the Simple MCP Server.`,
           },
         ],
       };
 
     case 'calculate':
-      const { operation, a, b } = args as any;
+      const { operation, a, b } = args;
       let result: number;
       
       switch (operation) {
@@ -129,24 +111,78 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     default:
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
   }
-});
-
-server.onerror = (error) => {
-  console.error('[MCP Error]', error);
-};
-
-process.on('SIGINT', async () => {
-  await server.close();
-  process.exit(0);
-});
-
-async function run() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('Simple MCP Server running on stdio');
 }
 
-run().catch((error) => {
-  console.error('Server failed to start:', error);
-  process.exit(1);
-}); 
+// smithery.ai에서 기대하는 HTTP 엔드포인트 핸들러
+export default async function handler(req: any) {
+  try {
+    const method = req.method || 'GET';
+    
+    // GET 요청: 도구 목록 반환 (lazy loading)
+    if (method === 'GET') {
+      return new Response(JSON.stringify({ tools }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
+    // POST 요청: MCP 요청 처리
+    if (method === 'POST') {
+      const body = req.body ? JSON.parse(req.body) : {};
+      
+      if (body.method === 'tools/list') {
+        return new Response(JSON.stringify({ tools }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } else if (body.method === 'tools/call') {
+        const { name, arguments: args } = body.params || {};
+        const result = await executeTool(name, args);
+        
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    }
+
+    // OPTIONS 요청: CORS 처리
+    if (method === 'OPTIONS') {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
+    throw new Error('Unsupported method');
+  } catch (error) {
+    console.error('Handler error:', error);
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+}
+
+// 로컬 테스트를 위한 출력
+if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  console.log('Simple MCP Server initialized for HTTP');
+  console.log('Available tools:', tools.map(t => t.name).join(', '));
+} 
