@@ -1,0 +1,27 @@
+{
+  "name": "simple-mcp-server",
+  "version": "1.0.0",
+  "description": "Simple MCP test server for smithery.ai deployment",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test.js",
+    "deploy": "./deploy.sh"
+  },
+  "keywords": [
+    "mcp",
+    "server",
+    "ai",
+    "smithery"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
