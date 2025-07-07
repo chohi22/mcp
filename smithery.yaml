@@ -1,12 +1,13 @@
 version: 1
 name: procurement-mcp-server
-description: Python-based MCP Server for procurement data automation
+description: Flask-based MCP Server for procurement data automation
 
 build:
   dockerfile: Dockerfile
 
 deploy:
   type: service
+  port: 5000
 
 environment:
   - KOREA_API_KEY
@@ -14,15 +15,16 @@ environment:
   - SUPABASE_KEY
 
 health_check:
-  command: ["python", "-c", "print('ok')"]
+  path: /health
   interval: 30s
   timeout: 10s
   retries: 3
 
 resources:
-  memory: 256Mi
-  cpu: 128m
+  memory: 512Mi
+  cpu: 256m
 
 scaling:
   min_replicas: 1
-  max_replicas: 2
+  max_replicas: 3
+  target_cpu: 70
