@@ -1,0 +1,31 @@
+version: 1
+name: procurement-mcp-server
+description: MCP Server for procurement data integration with Make.com
+
+build:
+  dockerfile: Dockerfile
+  context: .
+
+deploy:
+  type: service
+  port: 3000
+  
+environment:
+  - KOREA_API_KEY
+  - SUPABASE_URL
+  - SUPABASE_SERVICE_KEY
+
+health_check:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+
+resources:
+  memory: 512Mi
+  cpu: 256m
+
+scaling:
+  min_replicas: 1
+  max_replicas: 3
+  target_cpu: 70
