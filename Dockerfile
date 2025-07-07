@@ -17,4 +17,4 @@ ENV PORT=3000
 ENV PYTHONUNBUFFERED=1
 
 # Gunicorn으로 Flask 앱 시작
-CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--timeout", "120", "app:app"] 
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "app:app"] 
