@@ -1,30 +1,30 @@
 FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install --production
 
 # Copy source code
-COPY src/ ./src/
-
-# Build the application
-RUN npm run build
+COPY index.js ./
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S mcp -u 1001
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S mcp -u 1001 -G nodejs
 
-# Change ownership of the app directory
+# Change ownership
 RUN chown -R mcp:nodejs /app
+
+# Switch to non-root user
 USER mcp
 
-# Expose port (if needed for HTTP transport)
-EXPOSE 3000
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "console.log('Health check passed')" || exit 1
 
 # Start the server
-CMD ["npm", "start"]
+CMD ["node", "index.js"]

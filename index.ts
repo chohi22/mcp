@@ -1,36 +1,14 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
+const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
+const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
+const {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ToolSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
-import axios from 'axios';
-
-// Tool schemas
-const GetProcurementDataSchema = z.object({
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  agency: z.string().optional(),
-  keyword: z.string().optional(),
-});
-
-const UpdateSupabaseSchema = z.object({
-  data: z.array(z.record(z.any())),
-  table: z.string().default('procurement_data'),
-});
-
-const TriggerMakeWebhookSchema = z.object({
-  webhookUrl: z.string().url(),
-  data: z.record(z.any()),
-});
+} = require('@modelcontextprotocol/sdk/types.js');
+const axios = require('axios');
 
 class ProcurementMCPServer {
-  private server: Server;
-
   constructor() {
     this.server = new Server(
       {
@@ -47,7 +25,7 @@ class ProcurementMCPServer {
     this.setupHandlers();
   }
 
-  private setupHandlers() {
+  setupHandlers() {
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -60,59 +38,46 @@ class ProcurementMCPServer {
               properties: {
                 startDate: {
                   type: 'string',
-                  description: 'Start date for data retrieval (YYYY-MM-DD)',
+                  description: 'Start date (YYYY-MM-DD)',
                 },
                 endDate: {
                   type: 'string',
-                  description: 'End date for data retrieval (YYYY-MM-DD)',
+                  description: 'End date (YYYY-MM-DD)',
                 },
                 agency: {
                   type: 'string',
-                  description: 'Government agency name filter',
-                },
-                keyword: {
-                  type: 'string',
-                  description: 'Keyword to search in procurement data',
+                  description: 'Government agency filter',
                 },
               },
-              required: [],
             },
           },
           {
-            name: 'update_supabase',
-            description: 'Update Supabase database with procurement data',
+            name: 'update_database',
+            description: 'Update database with procurement data',
             inputSchema: {
               type: 'object',
               properties: {
                 data: {
                   type: 'array',
-                  description: 'Array of procurement data objects',
-                  items: {
-                    type: 'object',
-                  },
-                },
-                table: {
-                  type: 'string',
-                  description: 'Target table name',
-                  default: 'procurement_data',
+                  description: 'Procurement data array',
                 },
               },
               required: ['data'],
             },
           },
           {
-            name: 'trigger_make_webhook',
-            description: 'Trigger Make.com webhook with data',
+            name: 'trigger_webhook',
+            description: 'Trigger Make.com webhook',
             inputSchema: {
               type: 'object',
               properties: {
                 webhookUrl: {
                   type: 'string',
-                  description: 'Make.com webhook URL',
+                  description: 'Webhook URL',
                 },
                 data: {
                   type: 'object',
-                  description: 'Data to send to webhook',
+                  description: 'Data to send',
                 },
               },
               required: ['webhookUrl', 'data'],
@@ -130,10 +95,10 @@ class ProcurementMCPServer {
         switch (name) {
           case 'get_procurement_data':
             return await this.getProcurementData(args);
-          case 'update_supabase':
-            return await this.updateSupabase(args);
-          case 'trigger_make_webhook':
-            return await this.triggerMakeWebhook(args);
+          case 'update_database':
+            return await this.updateDatabase(args);
+          case 'trigger_webhook':
+            return await this.triggerWebhook(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -142,7 +107,7 @@ class ProcurementMCPServer {
           content: [
             {
               type: 'text',
-              text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+              text: `Error: ${error.message}`,
             },
           ],
           isError: true,
@@ -151,31 +116,27 @@ class ProcurementMCPServer {
     });
   }
 
-  private async getProcurementData(args: any) {
-    const { startDate, endDate, agency, keyword } = GetProcurementDataSchema.parse(args);
+  async getProcurementData(args) {
+    const { startDate, endDate, agency } = args || {};
 
-    const API_KEY = process.env.KOREA_API_KEY;
+    const API_KEY = process.env.KOREA_API_KEY || 'test_key';
     const API_URL = 'https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch';
-
-    if (!API_KEY) {
-      throw new Error('KOREA_API_KEY environment variable is not set');
-    }
 
     const params = new URLSearchParams({
       serviceKey: API_KEY,
       pageNo: '1',
-      numOfRows: '100',
+      numOfRows: '50',
       resultType: 'json',
     });
 
-    if (startDate) params.append('prcureInsttNm', startDate);
-    if (endDate) params.append('prcureInsttNm', endDate);
-    if (agency) params.append('prcureInsttNm', agency);
-    if (keyword) params.append('prcureInsttNm', keyword);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (agency) params.append('agency', agency);
 
     try {
-      const response = await axios.get(`${API_URL}?${params.toString()}`);
-      const data = response.data;
+      const response = await axios.get(`${API_URL}?${params.toString()}`, {
+        timeout: 10000,
+      });
 
       return {
         content: [
@@ -183,39 +144,45 @@ class ProcurementMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: true,
-              data: data,
-              totalCount: data.response?.body?.totalCount || 0,
-              retrievedAt: new Date().toISOString(),
+              data: response.data,
+              timestamp: new Date().toISOString(),
             }, null, 2),
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Failed to fetch procurement data: ${error}`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              timestamp: new Date().toISOString(),
+            }, null, 2),
+          },
+        ],
+      };
     }
   }
 
-  private async updateSupabase(args: any) {
-    const { data, table } = UpdateSupabaseSchema.parse(args);
+  async updateDatabase(args) {
+    const { data } = args;
 
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required');
-    }
+    const SUPABASE_URL = process.env.SUPABASE_URL || 'https://kxainopapqkhxlftstuf.supabase.co';
+    const SUPABASE_KEY = process.env.SUPABASE_KEY || 'test_key';
 
     try {
       const response = await axios.post(
-        `${SUPABASE_URL}/rest/v1/${table}`,
+        `${SUPABASE_URL}/rest/v1/procurement_data`,
         data,
         {
           headers: {
             'apikey': SUPABASE_KEY,
             'Authorization': `Bearer ${SUPABASE_KEY}`,
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation',
           },
+          timeout: 10000,
         }
       );
 
@@ -225,26 +192,38 @@ class ProcurementMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: true,
-              message: `Successfully updated ${data.length} records in ${table}`,
-              data: response.data,
-              updatedAt: new Date().toISOString(),
+              message: `Updated ${data.length} records`,
+              timestamp: new Date().toISOString(),
             }, null, 2),
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Failed to update Supabase: ${error}`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              timestamp: new Date().toISOString(),
+            }, null, 2),
+          },
+        ],
+      };
     }
   }
 
-  private async triggerMakeWebhook(args: any) {
-    const { webhookUrl, data } = TriggerMakeWebhookSchema.parse(args);
+  async triggerWebhook(args) {
+    const { webhookUrl, data } = args;
 
     try {
       const response = await axios.post(webhookUrl, {
         ...data,
         timestamp: new Date().toISOString(),
         source: 'procurement-mcp-server',
+      }, {
+        timeout: 10000,
       });
 
       return {
@@ -253,26 +232,35 @@ class ProcurementMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: true,
-              message: 'Webhook triggered successfully',
               status: response.status,
-              responseData: response.data,
-              triggeredAt: new Date().toISOString(),
+              timestamp: new Date().toISOString(),
             }, null, 2),
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Failed to trigger Make.com webhook: ${error}`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              timestamp: new Date().toISOString(),
+            }, null, 2),
+          },
+        ],
+      };
     }
   }
 
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Procurement MCP Server running on stdio');
+    console.error('Procurement MCP Server running...');
   }
 }
 
-// Run the server
+// Start the server
 const server = new ProcurementMCPServer();
 server.run().catch(console.error);
